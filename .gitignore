@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+
+# Runtime state — never commit secrets or the operator's own database
+api/.env
+api/.secret_key
+api/*.db
+api/*.db-journal
+
+# CLI local credentials
+.toolskalika/

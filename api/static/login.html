@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Toolskalika — Operator Access</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0b0c10; color: #e6e6e6; max-width: 560px;
+    margin: 10vh auto; padding: 0 24px; line-height: 1.5;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+  .sub { color: #9aa0a6; margin-bottom: 2rem; }
+  button {
+    background: #2f6feb; color: white; border: none; border-radius: 8px;
+    padding: 12px 20px; font-size: 1rem; cursor: pointer; width: 100%;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.secondary { background: #22242a; margin-top: 10px; }
+  pre {
+    background: #16171d; border: 1px solid #2a2c33; border-radius: 8px;
+    padding: 14px; white-space: pre-wrap; word-break: break-all;
+    font-size: 0.85rem;
+  }
+  .status { margin-top: 16px; min-height: 1.4em; }
+  .error { color: #ff6b6b; }
+  .ok { color: #4fd17f; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <h1>Toolskalika</h1>
+  <div class="sub">Single-operator access. This ceremony runs entirely through your
+    device's platform authenticator (Face ID / Touch ID / Windows Hello) — the
+    server never sees your biometric, only the resulting passkey signature.</div>
+
+  <div id="unregistered">
+    <button id="registerBtn">Register this device as the operator</button>
+  </div>
+
+  <div id="registered" class="hidden">
+    <button id="loginBtn">Sign in with passkey</button>
+  </div>
+
+  <div class="status" id="status"></div>
+  <div id="tokenBox" class="hidden">
+    <p>Paste this into the CLI (<code>toolskalika auth token &lt;value&gt;</code>).
+       It won't be shown again:</p>
+    <pre id="tokenValue"></pre>
+    <button class="secondary" id="copyBtn">Copy token</button>
+  </div>
+
+<script>
+const statusEl = document.getElementById("status");
+const tokenBox = document.getElementById("tokenBox");
+const tokenValue = document.getElementById("tokenValue");
+
+function setStatus(msg, cls) {
+  statusEl.textContent = msg;
+  statusEl.className = "status" + (cls ? " " + cls : "");
+}
+
+function b64urlToBuffer(b64url) {
+  const pad = "=".repeat((4 - (b64url.length % 4)) % 4);
+  const base64 = (b64url + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const buf = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+  return buf.buffer;
+}
+
+function bufferToB64url(buf) {
+  const bytes = new Uint8Array(buf);
+  let str = "";
+  for (const b of bytes) str += String.fromCharCode(b);
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `${path} failed (${res.status})`);
+  return data;
+}
+
+function showToken(token) {
+  tokenValue.textContent = token;
+  tokenBox.classList.remove("hidden");
+}
+
+document.getElementById("copyBtn").addEventListener("click", () => {
+  navigator.clipboard.writeText(tokenValue.textContent);
+  setStatus("Copied.", "ok");
+});
+
+document.getElementById("registerBtn").addEventListener("click", async () => {
+  try {
+    setStatus("Requesting registration challenge…");
+    const { flow_id, publicKey } = await api("/auth/register/options");
+
+    publicKey.challenge = b64urlToBuffer(publicKey.challenge);
+    publicKey.user.id = b64urlToBuffer(publicKey.user.id);
+    if (publicKey.excludeCredentials) {
+      publicKey.excludeCredentials = publicKey.excludeCredentials.map((c) => ({
+        ...c,
+        id: b64urlToBuffer(c.id),
+      }));
+    }
+
+    setStatus("Waiting for Face ID / Touch ID / Windows Hello…");
+    const cred = await navigator.credentials.create({ publicKey });
+
+    const credentialJson = {
+      id: cred.id,
+      rawId: bufferToB64url(cred.rawId),
+      type: cred.type,
+      response: {
+        clientDataJSON: bufferToB64url(cred.response.clientDataJSON),
+        attestationObject: bufferToB64url(cred.response.attestationObject),
+        transports: cred.response.getTransports ? cred.response.getTransports() : [],
+      },
+      clientExtensionResults: cred.getClientExtensionResults(),
+    };
+
+    setStatus("Verifying with server…");
+    const { token } = await api("/auth/register/verify", {
+      flow_id,
+      credential: credentialJson,
+      nickname: navigator.platform || "primary passkey",
+    });
+
+    setStatus("Registered. You are now the only operator.", "ok");
+    showToken(token);
+  } catch (err) {
+    setStatus(err.message || String(err), "error");
+  }
+});
+
+document.getElementById("loginBtn").addEventListener("click", async () => {
+  try {
+    setStatus("Requesting login challenge…");
+    const { flow_id, publicKey } = await api("/auth/login/options");
+
+    publicKey.challenge = b64urlToBuffer(publicKey.challenge);
+    if (publicKey.allowCredentials) {
+      publicKey.allowCredentials = publicKey.allowCredentials.map((c) => ({
+        ...c,
+        id: b64urlToBuffer(c.id),
+      }));
+    }
+
+    setStatus("Waiting for Face ID / Touch ID / Windows Hello…");
+    const cred = await navigator.credentials.get({ publicKey });
+
+    const credentialJson = {
+      id: cred.id,
+      rawId: bufferToB64url(cred.rawId),
+      type: cred.type,
+      response: {
+        clientDataJSON: bufferToB64url(cred.response.clientDataJSON),
+        authenticatorData: bufferToB64url(cred.response.authenticatorData),
+        signature: bufferToB64url(cred.response.signature),
+        userHandle: cred.response.userHandle ? bufferToB64url(cred.response.userHandle) : null,
+      },
+      clientExtensionResults: cred.getClientExtensionResults(),
+    };
+
+    setStatus("Verifying with server…");
+    const { token } = await api("/auth/login/verify", { flow_id, credential: credentialJson });
+
+    setStatus("Signed in.", "ok");
+    showToken(token);
+  } catch (err) {
+    setStatus(err.message || String(err), "error");
+  }
+});
+
+(async function init() {
+  try {
+    const res = await fetch("/auth/status");
+    const { registered } = await res.json();
+    document.getElementById("unregistered").classList.toggle("hidden", registered);
+    document.getElementById("registered").classList.toggle("hidden", !registered);
+  } catch {
+    setStatus("Could not reach the API.", "error");
+  }
+})();
+</script>
+</body>
+</html>
