@@ -1,0 +1,7 @@
+node_modules/
+.venv/
+__pycache__/
+projects/*/build/
+projects/*/out/
+projects/*/raw/*
+!projects/sample-before-after/raw/*

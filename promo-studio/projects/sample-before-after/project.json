@@ -1,0 +1,20 @@
+{
+  "template": "before-after",
+  "hook": "Your website is losing customers",
+  "talkingHead": { "file": "raw/talking-head.mp4", "trimStart": "auto", "trimEnd": "auto", "focusY": 0.38 },
+  "before": { "file": "raw/old-site.mp4", "label": "BEFORE" },
+  "after": { "file": "raw/new-site.mp4", "label": "AFTER" },
+  "wipe": { "at": "@after", "sweep": 1.6, "peekHold": 1 },
+  "callouts": [
+    { "text": "Mobile ✓", "at": "@phones" },
+    { "text": "WhatsApp button ✓", "at": "@whatsapp" },
+    { "text": "Fast ⚡", "at": "@fast" }
+  ],
+  "endCard": { "title": "Free website audit", "subtitle": "link in bio", "seconds": 2.5 },
+  "captions": {
+    "language": "en",
+    "model": "small.en",
+    "vocabulary": ["Ironhand", "WhatsApp"],
+    "corrections": { "iron hand": "Ironhand", "whats app": "WhatsApp" }
+  }
+}
