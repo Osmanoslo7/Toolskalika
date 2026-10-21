@@ -8,7 +8,7 @@ import type { CaptionWord } from '../src/lib/captions.ts';
 import { beforeAfterSchema, type BeforeAfterProps } from '../src/templates/before-after/schema.ts';
 import { theme } from '../src/theme.ts';
 import { applyCorrections, mergeCaptions, type AutoWord } from './lib/captions-merge.ts';
-import { autoTrim, LOUDNESS_TARGET, parseLoudnorm, parseSilences, secondPassFilter } from './lib/loudness.ts';
+import { autoTrim, LOUDNESS_TARGET, parseLoudnorm, parseSilences, secondPassFilter, TRUE_PEAK_CEILING } from './lib/loudness.ts';
 import {
   beforeAfterProjectSchema,
   compositionIds,
@@ -425,14 +425,20 @@ const verify = (file: string) => {
     capture: true,
   }).stderr;
   const summary = ebur.slice(ebur.lastIndexOf('Summary:'));
-  const lufs = summary.match(/I:\s+(-?[\d.]+) LUFS/)?.[1];
-  const peak = summary.match(/Peak:\s+(-?[\d.]+) dBFS/)?.[1];
-  console.log(
-    `  video: ${v.codec_name} ${v.profile} ${v.width}x${v.height} @ ${v.r_frame_rate} ${v.pix_fmt}\n` +
-      `  audio: ${a ? `${a.codec_name} ${a.sample_rate} Hz` : 'none'}\n` +
-      `  loudness: ${lufs} LUFS integrated (target ${LOUDNESS_TARGET.I}), true peak ${peak} dBFS (ceiling ${LOUDNESS_TARGET.TP})\n` +
-      `  duration: ${Number(s.format.duration).toFixed(2)}s`,
-  );
+  const lufs = Number(summary.match(/I:\s+(-?[\d.]+) LUFS/)?.[1]);
+  const peak = Number(summary.match(/Peak:\s+(-?[\d.]+) dBFS/)?.[1]);
+  const checks: Array<[boolean, string]> = [
+    [v.codec_name === 'h264', `video ${v.codec_name} ${v.profile}`],
+    [v.width === theme.video.width && v.height === theme.video.height, `${v.width}x${v.height}`],
+    [v.r_frame_rate === `${FPS}/1`, `${v.r_frame_rate} fps`],
+    [v.pix_fmt === 'yuv420p', `${v.pix_fmt}, ${v.color_space ?? 'untagged'}`],
+    [a?.codec_name === 'aac', `audio ${a ? `${a.codec_name} ${a.sample_rate} Hz` : 'missing'}`],
+    [Math.abs(lufs - LOUDNESS_TARGET.I) <= 1, `${lufs} LUFS integrated (target ${LOUDNESS_TARGET.I})`],
+    [peak <= TRUE_PEAK_CEILING, `true peak ${peak} dBFS (ceiling ${TRUE_PEAK_CEILING})`],
+  ];
+  for (const [ok, label] of checks) console.log(ok ? c.green(`  ✓ ${label}`) : c.red(`  ✗ ${label}`));
+  console.log(`    duration ${Number(s.format.duration).toFixed(2)}s`);
+  if (checks.some(([ok]) => !ok)) warn('The output does not meet every delivery spec above.');
 };
 
 const render = (name: string) => {

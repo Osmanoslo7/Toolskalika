@@ -18,7 +18,9 @@ export const parseLoudnorm = (stderr: string): LoudnormMeasure => {
   return json;
 };
 
-export const LOUDNESS_TARGET = { I: -14, TP: -1.5, LRA: 11 };
+// TP is aimed at -2.0 so the AAC encode's inter-sample overshoot still lands under -1.5 dBTP.
+export const LOUDNESS_TARGET = { I: -14, TP: -2.0, LRA: 11 };
+export const TRUE_PEAK_CEILING = -1.5;
 
 export const secondPassFilter = (m: LoudnormMeasure) =>
   `loudnorm=I=${LOUDNESS_TARGET.I}:TP=${LOUDNESS_TARGET.TP}:LRA=${LOUDNESS_TARGET.LRA}` +

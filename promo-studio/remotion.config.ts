@@ -5,6 +5,8 @@ Config.setVideoImageFormat('jpeg');
 Config.setJpegQuality(92);
 Config.setCodec('h264');
 Config.setPixelFormat('yuv420p');
+// Without this Remotion writes full-range (yuvj420p) video tagged bt470bg, which some apps show with shifted contrast.
+Config.setColorSpace('bt709');
 Config.setCrf(18);
 Config.setX264Preset('medium');
 Config.setAudioCodec('aac');
