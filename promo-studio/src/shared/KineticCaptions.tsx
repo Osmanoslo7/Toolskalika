@@ -67,7 +67,7 @@ export const KineticCaptions: React.FC<{
             key={`${word.start}-${i}`}
             style={{
               display: 'inline-block',
-              margin: '0 0.12em',
+              margin: '0 0.2em', // room for the active word's 1.1x pop
               color: gold ? theme.colors.gold : theme.colors.silver,
               transform: `scale(${isActive ? interpolate(wordPop, [0, 1], [1, 1.1]) : 1})`,
               WebkitTextStroke: '12px #000',
