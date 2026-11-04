@@ -1,0 +1,14 @@
+# Project-wide settings. Every module reads these values; nothing else hard-codes them.
+
+[project]
+name = "Ashes of the Front"
+slug = "ashes-of-the-front"
+
+[video]
+width = 1080
+height = 1920
+fps = 24
+
+[episode]
+min_seconds = 180
+max_seconds = 300

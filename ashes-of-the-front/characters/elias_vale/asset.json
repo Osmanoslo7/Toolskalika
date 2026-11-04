@@ -1,0 +1,19 @@
+{
+  "$schema": "../../schemas/asset.schema.json",
+  "id": "elias_vale",
+  "type": "character",
+  "name": "Elias Vale",
+  "version": 1,
+  "status": "draft",
+  "description": "Rifleman. Brief-level description only; the visual design is not approved yet.",
+  "tags": ["main", "rifleman"],
+  "layers": [],
+  "character": {
+    "identity": {
+      "age": 23,
+      "role": "Rifleman",
+      "hair": "messy dark hair",
+      "distinguishing_features": ["facial scar"]
+    }
+  }
+}

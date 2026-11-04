@@ -1,0 +1,20 @@
+{
+  "$schema": "../../schemas/asset.schema.json",
+  "id": "briggs",
+  "type": "character",
+  "name": "Briggs",
+  "version": 1,
+  "status": "draft",
+  "description": "Heavy-weapons specialist. Brief-level description only; the visual design is not approved yet.",
+  "tags": ["main", "heavy_weapons"],
+  "layers": [],
+  "character": {
+    "identity": {
+      "age": 29,
+      "role": "Heavy-weapons specialist",
+      "build": "muscular",
+      "hair": "beard",
+      "distinguishing_features": ["beard"]
+    }
+  }
+}

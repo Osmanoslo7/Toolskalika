@@ -1,0 +1,6 @@
+# Required now (manifest validation).
+jsonschema>=4.21
+
+# Not listed here yet, and detected by `./ashes doctor` when needed:
+#   Blender 4.x  (Phase 3: scene build and animation)  https://www.blender.org/download/
+#   FFmpeg       (Phase 4: audio and rendering)        system package, e.g. sudo apt install ffmpeg

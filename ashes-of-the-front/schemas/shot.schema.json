@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ashes of the Front shot manifest",
+  "description": "One shot.json per shot. All times are seconds from the start of the shot. Frames are derived by the engine.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id", "title", "duration_seconds", "fps", "width", "height",
+    "characters", "environment", "camera", "layers", "effects", "dialogue", "audio", "output"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "$ref": "#/$defs/id" },
+    "title": { "type": "string", "minLength": 1 },
+    "duration_seconds": { "type": "number", "exclusiveMinimum": 0, "maximum": 60 },
+    "fps": { "type": "integer", "minimum": 1, "maximum": 60 },
+    "width": { "type": "integer", "minimum": 1 },
+    "height": { "type": "integer", "minimum": 1 },
+    "characters": { "type": "array", "items": { "$ref": "#/$defs/id" }, "uniqueItems": true },
+    "environment": { "$ref": "#/$defs/id" },
+    "camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["keyframes"],
+      "properties": {
+        "keyframes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/camera_key" } }
+      }
+    },
+    "layers": { "type": "array", "items": { "$ref": "#/$defs/layer" } },
+    "effects": { "type": "array", "items": { "$ref": "#/$defs/effect" } },
+    "dialogue": { "type": "array", "items": { "$ref": "#/$defs/line" } },
+    "audio": { "type": "array", "items": { "$ref": "#/$defs/cue" } },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file"],
+      "properties": { "file": { "type": "string", "pattern": "\\.mp4$" } }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "time": { "type": "number", "minimum": 0 },
+    "viseme": { "enum": ["rest", "AI", "E", "O", "U", "etc", "FV", "L", "MBP", "WQ"] },
+    "camera_key": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["time"],
+      "properties": {
+        "time": { "$ref": "#/$defs/time" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "zoom": { "type": "number", "exclusiveMinimum": 0 },
+        "rotation": { "type": "number" },
+        "ease": { "enum": ["linear", "ease_in", "ease_out", "ease_in_out", "hold"] }
+      }
+    },
+    "layer": {
+      "description": "A placed asset. parallax 0 = fixed to the frame, 1 = moves with the camera, above 1 = foreground.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "asset", "z", "keyframes"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "asset": { "$ref": "#/$defs/id" },
+        "z": { "type": "integer" },
+        "parallax": { "type": "number", "minimum": 0, "maximum": 2 },
+        "keyframes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/layer_key" } }
+      }
+    },
+    "layer_key": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["time"],
+      "properties": {
+        "time": { "$ref": "#/$defs/time" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "scale": { "type": "number", "exclusiveMinimum": 0 },
+        "rotation": { "type": "number" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "expression": { "type": "string", "pattern": "^[a-z_]+$" },
+        "mouth": { "$ref": "#/$defs/viseme" }
+      }
+    },
+    "effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "start", "end"],
+      "properties": {
+        "type": { "enum": ["smoke", "dust", "muzzle_flash", "light_sweep", "shake", "vignette", "flicker"] },
+        "start": { "$ref": "#/$defs/time" },
+        "end": { "$ref": "#/$defs/time" },
+        "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "params": { "type": "object" }
+      }
+    },
+    "line": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["speaker", "text", "start", "end"],
+      "properties": {
+        "speaker": { "$ref": "#/$defs/id" },
+        "text": { "type": "string", "minLength": 1 },
+        "start": { "$ref": "#/$defs/time" },
+        "end": { "$ref": "#/$defs/time" },
+        "kind": { "enum": ["dialogue", "narration", "radio"] }
+      }
+    },
+    "cue": {
+      "description": "An audio file placed on the timeline. 'file' is relative to the project root.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "file", "start"],
+      "properties": {
+        "kind": { "enum": ["dialogue", "narration", "radio", "sfx", "music"] },
+        "file": { "type": "string", "minLength": 1 },
+        "start": { "$ref": "#/$defs/time" },
+        "gain_db": { "type": "number", "maximum": 6 }
+      }
+    }
+  }
+}
