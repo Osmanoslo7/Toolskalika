@@ -1,5 +1,6 @@
-# Required now (manifest validation).
+# Required (manifest validation, PNG artwork checks).
 jsonschema>=4.21
+Pillow>=10.0
 
 # Not listed here yet, and detected by `./ashes doctor` when needed:
 #   Blender 4.x  (Phase 3: scene build and animation)  https://www.blender.org/download/

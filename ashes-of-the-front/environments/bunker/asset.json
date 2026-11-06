@@ -1,11 +1,14 @@
 {
   "$schema": "../../schemas/asset.schema.json",
+  "schema_version": 2,
   "id": "bunker",
   "type": "environment",
   "name": "Armoured vehicle interior",
   "version": 1,
   "status": "draft",
   "description": "Placeholder environment used by the test fixtures. Replace with the real interior when it is designed.",
-  "tags": ["placeholder"],
+  "tags": [
+    "placeholder"
+  ],
   "layers": []
 }

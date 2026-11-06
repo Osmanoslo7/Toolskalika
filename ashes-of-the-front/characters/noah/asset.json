@@ -1,19 +1,33 @@
 {
   "$schema": "../../schemas/asset.schema.json",
+  "schema_version": 2,
   "id": "noah",
   "type": "character",
   "name": "Noah",
   "version": 1,
   "status": "draft",
   "description": "Communications specialist. Brief-level description only; the visual design is not approved yet.",
-  "tags": ["main", "comms"],
+  "tags": [
+    "main",
+    "comms"
+  ],
   "layers": [],
   "character": {
     "identity": {
       "age": 25,
       "role": "Communications specialist",
       "hair": "curly hair",
-      "distinguishing_features": ["glasses"]
+      "distinguishing_features": [
+        "glasses"
+      ]
+    },
+    "canvas": {
+      "width": 1024,
+      "height": 1536,
+      "root": [
+        512,
+        1100
+      ]
     }
   }
 }

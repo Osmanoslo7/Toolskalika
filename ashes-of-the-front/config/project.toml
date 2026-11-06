@@ -12,3 +12,9 @@ fps = 24
 [episode]
 min_seconds = 180
 max_seconds = 300
+
+# Layer PNG rules. See CLAUDE.md, "Artwork convention".
+[artwork]
+padding_px = 8                # transparent margin required around all visible pixels
+min_transparent_fraction = 0.10  # a layer must be at least this share fully transparent
+max_background_fraction = 0.50   # one opaque colour covering more than this share = background fill

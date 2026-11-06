@@ -1,0 +1,14 @@
+{
+  "$schema": "../schemas/face.schema.json",
+  "schema_version": 1,
+  "character": "elias_vale",
+  "jaw_bone": "jaw",
+  "mouth_sprites": {},
+  "expressions": {
+    "neutral": {"eye_open": 1.0, "eye_direction": [0, 0], "brow_angle": 0, "brow_height": 0, "jaw_open": 0},
+    "angry": {"eye_open": 0.8, "eye_direction": [0, 0], "brow_angle": -25, "brow_height": -0.3, "jaw_open": 0.1},
+    "determined": {"eye_open": 0.85, "eye_direction": [0, 0], "brow_angle": -10, "brow_height": -0.1, "jaw_open": 0.05},
+    "surprised": {"eye_open": 1.0, "eye_direction": [0, 0], "brow_angle": 15, "brow_height": 0.8, "jaw_open": 0.4},
+    "injured": {"eye_open": 0.5, "eye_direction": [0, 0], "brow_angle": 12, "brow_height": 0.3, "jaw_open": 0.2}
+  }
+}

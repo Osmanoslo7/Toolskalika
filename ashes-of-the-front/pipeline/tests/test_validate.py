@@ -8,6 +8,7 @@ from ashes.config import load_config
 from ashes.deps import check_all
 from ashes.paths import PROJECT_ROOT
 from ashes.validate import validate_project
+from tests.support import minimal_face, minimal_rig
 
 CONFIG = load_config()
 
@@ -19,6 +20,7 @@ def write_json(path: Path, data) -> None:
 
 def asset(asset_id: str, asset_type: str = "character", **overrides) -> dict:
     data = {
+        "schema_version": 2,
         "id": asset_id,
         "type": asset_type,
         "name": asset_id.title(),
@@ -28,7 +30,10 @@ def asset(asset_id: str, asset_type: str = "character", **overrides) -> dict:
         "layers": [],
     }
     if asset_type == "character":
-        data["character"] = {"identity": {"age": 30, "role": "tester"}}
+        data["character"] = {
+            "identity": {"age": 30, "role": "tester"},
+            "canvas": {"width": 256, "height": 256, "root": [128, 200]},
+        }
     data.update(overrides)
     return data
 
@@ -61,6 +66,8 @@ class FixtureProject(unittest.TestCase):
         self.root = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.root, True)
         write_json(self.root / "characters" / "hero" / "asset.json", asset("hero"))
+        write_json(self.root / "characters" / "hero" / "rig.json", minimal_rig("hero"))
+        write_json(self.root / "characters" / "hero" / "face.json", minimal_face("hero"))
         write_json(self.root / "environments" / "bunker" / "asset.json", asset("bunker", "environment"))
         write_json(self.root / "shots" / "s01" / "shot.json", shot())
 
@@ -103,7 +110,7 @@ class AssetTests(FixtureProject):
         self.assertTrue(any("character" in e for e in self.validate().errors))
 
     def test_draft_with_missing_layer_file_is_a_warning(self):
-        data = asset("hero", layers=[{"name": "body", "file": "layers/body.png", "z": 1}])
+        data = asset("hero", layers=[{"name": "body", "file": "layers/body.png", "z": 1, "pivot": [128, 200]}])
         write_json(self.root / "characters" / "hero" / "asset.json", data)
         report = self.validate()
         self.assertTrue(report.ok, report.errors)
@@ -113,7 +120,7 @@ class AssetTests(FixtureProject):
         data = asset(
             "hero",
             status="approved",
-            layers=[{"name": "body", "file": "layers/body.png", "z": 1}],
+            layers=[{"name": "body", "file": "layers/body.png", "z": 1, "pivot": [128, 200]}],
         )
         write_json(self.root / "characters" / "hero" / "asset.json", data)
         report = self.validate()
@@ -125,7 +132,7 @@ class AssetTests(FixtureProject):
         self.assertTrue(any("need at least one layer" in e for e in report.errors), report.errors)
 
     def test_file_path_cannot_escape_the_asset_folder(self):
-        data = asset("hero", layers=[{"name": "body", "file": "../secret.png", "z": 1}])
+        data = asset("hero", layers=[{"name": "body", "file": "../secret.png", "z": 1, "pivot": [128, 200]}])
         write_json(self.root / "characters" / "hero" / "asset.json", data)
         report = self.validate()
         self.assertTrue(any("inside the asset folder" in e for e in report.errors), report.errors)

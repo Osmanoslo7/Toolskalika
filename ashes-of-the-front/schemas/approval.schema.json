@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ashes of the Front approval record",
+  "description": "Append-only version history of approved character artwork. Written only by ./ashes approve. Each version keeps a snapshot of its layer PNGs under history/v<version>/.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "character", "versions"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "const": 1 },
+    "character": { "$ref": "#/$defs/id" },
+    "versions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/entry" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 40 },
+    "hash256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "hash64": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "approved_at", "layers"],
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "approved_at": { "type": "string", "minLength": 1 },
+        "layers": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/id" },
+          "additionalProperties": { "$ref": "#/$defs/layer" }
+        }
+      }
+    },
+    "layer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "sha256", "ahash", "dhash", "width", "height", "bbox"],
+      "properties": {
+        "file": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/hash256" },
+        "ahash": { "$ref": "#/$defs/hash64" },
+        "dhash": { "$ref": "#/$defs/hash64" },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "bbox": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 4, "maxItems": 4 }
+      }
+    }
+  }
+}

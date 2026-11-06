@@ -1,13 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Schema v2 (Phase 2). v1 had no canvas, no layer pivots and inline expression/mouth maps; those now live in face.json and rig.json.",
   "title": "Ashes of the Front asset manifest",
-  "description": "One asset.json per character, environment, prop or effect. Times and sizes are in pixels and seconds.",
+  "description": "One asset.json per character, environment, prop or effect. Pixel coordinates are measured from the canvas top-left, y down.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "type", "name", "version", "status", "description", "layers"],
+  "required": ["schema_version", "id", "type", "name", "version", "status", "description", "layers"],
   "properties": {
     "$schema": { "type": "string" },
-    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "schema_version": { "const": 2 },
+    "id": { "$ref": "#/$defs/id" },
     "type": { "enum": ["character", "environment", "prop", "effect"] },
     "name": { "type": "string", "minLength": 1 },
     "version": { "type": "integer", "minimum": 1 },
@@ -25,44 +27,43 @@
     }
   ],
   "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 40 },
+    "point": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    },
     "layer": {
+      "description": "One PNG layer. Its file must be layers/<name>.png. The pivot is the joint the layer rotates around, in canvas pixels.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "file", "z"],
+      "required": ["name", "file", "z", "pivot"],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
+        "name": { "$ref": "#/$defs/id" },
         "file": { "type": "string", "minLength": 1 },
         "z": { "type": "integer" },
-        "pivot": {
-          "type": "array",
-          "items": { "type": "number" },
-          "minItems": 2,
-          "maxItems": 2
-        }
+        "pivot": { "$ref": "#/$defs/point" }
       }
     },
     "character": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["identity"],
+      "required": ["identity", "canvas"],
       "properties": {
         "identity": { "$ref": "#/$defs/identity" },
-        "expressions": {
-          "type": "object",
-          "propertyNames": { "pattern": "^[a-z_]+$" },
-          "additionalProperties": { "type": "string", "minLength": 1 }
-        },
-        "mouth_shapes": {
-          "type": "object",
-          "propertyNames": { "$ref": "#/$defs/viseme" },
-          "additionalProperties": { "type": "string", "minLength": 1 }
-        },
-        "rig": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["file"],
-          "properties": { "file": { "type": "string", "minLength": 1 } }
-        }
+        "canvas": { "$ref": "#/$defs/canvas" }
+      }
+    },
+    "canvas": {
+      "description": "Every layer of a character is exactly this size. root is the character's origin (the hip joint) and the origin of rig coordinates.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height", "root"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 64, "maximum": 8192 },
+        "height": { "type": "integer", "minimum": 64, "maximum": 8192 },
+        "root": { "$ref": "#/$defs/point" }
       }
     },
     "identity": {
@@ -78,10 +79,6 @@
         "hair": { "type": "string" },
         "distinguishing_features": { "type": "array", "items": { "type": "string" } }
       }
-    },
-    "viseme": {
-      "description": "Mouth shapes (Preston Blair set). 'rest' is the closed/neutral mouth.",
-      "enum": ["rest", "AI", "E", "O", "U", "etc", "FV", "L", "MBP", "WQ"]
     }
   }
 }

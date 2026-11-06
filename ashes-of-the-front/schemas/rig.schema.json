@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ashes of the Front rig definition",
+  "description": "Engine-independent 2D skeleton. Bone transforms are local to the parent. Translation is in character-relative pixels (origin = canvas root, y down). Rotation is in degrees, positive clockwise on screen.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "character", "coordinate_space", "units", "rotation_units", "bones", "attachments", "draw_order", "constraints", "deform"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "const": 1 },
+    "character": { "$ref": "#/$defs/id" },
+    "coordinate_space": { "const": "character" },
+    "units": { "const": "pixels" },
+    "rotation_units": { "const": "degrees" },
+    "bones": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/bone" } },
+    "attachments": { "type": "array", "items": { "$ref": "#/$defs/attachment" } },
+    "draw_order": { "type": "array", "items": { "$ref": "#/$defs/id" } },
+    "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } },
+    "deform": { "type": "array", "items": { "$ref": "#/$defs/deform" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 40 },
+    "transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "rotation": { "type": "number" },
+        "scale_x": { "type": "number", "exclusiveMinimum": 0 },
+        "scale_y": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "bone": {
+      "description": "parent is null only for the single root bone. length is the bone's visual length in pixels, used by IK and by Blender armatures later.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "parent", "transform"],
+      "properties": {
+        "name": { "$ref": "#/$defs/id" },
+        "parent": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "transform": { "$ref": "#/$defs/transform" },
+        "length": { "type": "number", "minimum": 0 },
+        "tags": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "attachment": {
+      "description": "Places one layer (a PNG from asset.json) on a bone. The layer's pivot is its rotation point.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["layer", "bone"],
+      "properties": {
+        "layer": { "$ref": "#/$defs/id" },
+        "bone": { "$ref": "#/$defs/id" }
+      }
+    },
+    "constraint": {
+      "description": "ik: bones = [upper, lower] parent-to-child chain, target = bone the tip follows. rotation_limit: bones = [one bone], min and max in degrees.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type", "bones"],
+      "properties": {
+        "name": { "$ref": "#/$defs/id" },
+        "type": { "enum": ["ik", "rotation_limit"] },
+        "bones": { "type": "array", "items": { "$ref": "#/$defs/id" }, "minItems": 1, "maxItems": 2 },
+        "target": { "$ref": "#/$defs/id" },
+        "bend": { "enum": ["clockwise", "counterclockwise"] },
+        "mix": { "type": "number", "minimum": 0, "maximum": 1 },
+        "min": { "type": "number" },
+        "max": { "type": "number" }
+      }
+    },
+    "deform": {
+      "description": "Optional mesh deformation for one layer. vertices are in layer pixels; influences[i] lists the bones that move vertex i, weights summing to 1.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["layer", "vertices", "influences"],
+      "properties": {
+        "layer": { "$ref": "#/$defs/id" },
+        "vertices": {
+          "type": "array",
+          "minItems": 3,
+          "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+        },
+        "influences": {
+          "type": "array",
+          "items": { "type": "array", "items": { "$ref": "#/$defs/influence" } }
+        }
+      }
+    },
+    "influence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bone", "weight"],
+      "properties": {
+        "bone": { "$ref": "#/$defs/id" },
+        "weight": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

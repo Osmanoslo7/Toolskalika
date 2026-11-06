@@ -48,6 +48,7 @@ def check_all() -> list[Check]:
     return [
         _python(),
         _package("jsonschema", True, "manifest validation"),
+        _package("Pillow", True, "artwork validation and consistency checks"),
         _binary("blender", ["--version"], "scene build and animation (Phase 3)"),
         _binary("ffmpeg", ["-version"], "audio and rendering (Phase 4)"),
         _binary("ffprobe", ["-version"], "checking rendered output (Phase 4)"),

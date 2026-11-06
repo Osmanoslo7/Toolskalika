@@ -1,12 +1,16 @@
 {
   "$schema": "../../schemas/asset.schema.json",
+  "schema_version": 2,
   "id": "rhea",
   "type": "character",
   "name": "Commander Rhea",
   "version": 1,
   "status": "draft",
   "description": "Female squad commander. Brief-level description only; the visual design is not approved yet.",
-  "tags": ["main", "command"],
+  "tags": [
+    "main",
+    "command"
+  ],
   "layers": [],
   "character": {
     "identity": {
@@ -15,6 +19,14 @@
       "role": "Squad commander",
       "hair": "dark hair, tied back",
       "distinguishing_features": []
+    },
+    "canvas": {
+      "width": 1024,
+      "height": 1536,
+      "root": [
+        512,
+        1100
+      ]
     }
   }
 }

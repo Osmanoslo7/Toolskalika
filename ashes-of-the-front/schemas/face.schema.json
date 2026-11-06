@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ashes of the Front facial animation definition",
+  "description": "Expression presets, eye and brow controls, jaw bone and the viseme-to-mouth-sprite map. Sprite values are layer names from asset.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "character", "jaw_bone", "mouth_sprites", "expressions"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "const": 1 },
+    "character": { "$ref": "#/$defs/id" },
+    "jaw_bone": { "$ref": "#/$defs/id" },
+    "mouth_sprites": {
+      "description": "Viseme -> layer name of the mouth sprite shown for it. All 14 visemes are required before the character can be approved.",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/viseme" },
+      "additionalProperties": { "$ref": "#/$defs/id" }
+    },
+    "expressions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["neutral", "angry", "determined", "surprised", "injured"],
+      "properties": {
+        "neutral": { "$ref": "#/$defs/expression" },
+        "angry": { "$ref": "#/$defs/expression" },
+        "determined": { "$ref": "#/$defs/expression" },
+        "surprised": { "$ref": "#/$defs/expression" },
+        "injured": { "$ref": "#/$defs/expression" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 40 },
+    "viseme": { "enum": ["REST", "MBP", "FV", "TH", "DNT", "KG", "CHJ", "SZ", "L", "AA", "E", "I", "O", "U"] },
+    "expression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eye_open", "eye_direction", "brow_angle", "brow_height", "jaw_open"],
+      "properties": {
+        "eye_open": { "type": "number", "minimum": 0, "maximum": 1 },
+        "eye_direction": {
+          "description": "[x, y] gaze, each in -1..1 (left/right, up/down).",
+          "type": "array",
+          "items": { "type": "number", "minimum": -1, "maximum": 1 },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "brow_angle": { "type": "number", "minimum": -90, "maximum": 90 },
+        "brow_height": { "type": "number", "minimum": -1, "maximum": 1 },
+        "jaw_open": { "type": "number", "minimum": 0, "maximum": 1 },
+        "sprites": {
+          "description": "Optional sprite swaps for this expression.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "eyes": { "$ref": "#/$defs/id" },
+            "brows": { "$ref": "#/$defs/id" }
+          }
+        }
+      }
+    }
+  }
+}

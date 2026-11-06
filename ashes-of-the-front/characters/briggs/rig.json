@@ -1,0 +1,42 @@
+{
+  "$schema": "../schemas/rig.schema.json",
+  "schema_version": 1,
+  "character": "briggs",
+  "coordinate_space": "character",
+  "units": "pixels",
+  "rotation_units": "degrees",
+  "bones": [
+    {"name": "root", "parent": null, "transform": {"x": 0, "y": 0}, "length": 0, "tags": ["root"]},
+    {"name": "spine", "parent": "root", "transform": {"x": 0, "y": -180}, "length": 160, "tags": []},
+    {"name": "chest", "parent": "spine", "transform": {"x": 0, "y": -160}, "length": 140, "tags": []},
+    {"name": "neck", "parent": "chest", "transform": {"x": 0, "y": -140}, "length": 40, "tags": []},
+    {"name": "head", "parent": "neck", "transform": {"x": 0, "y": -40}, "length": 120, "tags": []},
+    {"name": "jaw", "parent": "head", "transform": {"x": 0, "y": 30}, "length": 40, "tags": ["jaw"]},
+    {"name": "upper_arm_l", "parent": "chest", "transform": {"x": -110, "y": -110}, "length": 150, "tags": ["ik_chain"]},
+    {"name": "forearm_l", "parent": "upper_arm_l", "transform": {"x": 0, "y": 150}, "length": 130, "tags": ["ik_chain"]},
+    {"name": "hand_l", "parent": "forearm_l", "transform": {"x": 0, "y": 130}, "length": 40, "tags": []},
+    {"name": "upper_arm_r", "parent": "chest", "transform": {"x": 110, "y": -110}, "length": 150, "tags": ["ik_chain"]},
+    {"name": "forearm_r", "parent": "upper_arm_r", "transform": {"x": 0, "y": 150}, "length": 130, "tags": ["ik_chain"]},
+    {"name": "hand_r", "parent": "forearm_r", "transform": {"x": 0, "y": 130}, "length": 40, "tags": []},
+    {"name": "thigh_l", "parent": "root", "transform": {"x": -60, "y": 0}, "length": 200, "tags": ["ik_chain"]},
+    {"name": "shin_l", "parent": "thigh_l", "transform": {"x": 0, "y": 200}, "length": 190, "tags": ["ik_chain"]},
+    {"name": "foot_l", "parent": "shin_l", "transform": {"x": 0, "y": 190}, "length": 60, "tags": []},
+    {"name": "thigh_r", "parent": "root", "transform": {"x": 60, "y": 0}, "length": 200, "tags": ["ik_chain"]},
+    {"name": "shin_r", "parent": "thigh_r", "transform": {"x": 0, "y": 200}, "length": 190, "tags": ["ik_chain"]},
+    {"name": "foot_r", "parent": "shin_r", "transform": {"x": 0, "y": 190}, "length": 60, "tags": []},
+    {"name": "ik_hand_l", "parent": "root", "transform": {"x": -200, "y": -80}, "length": 0, "tags": ["ik_target"]},
+    {"name": "ik_hand_r", "parent": "root", "transform": {"x": 200, "y": -80}, "length": 0, "tags": ["ik_target"]},
+    {"name": "ik_foot_l", "parent": "root", "transform": {"x": -60, "y": 250}, "length": 0, "tags": ["ik_target"]},
+    {"name": "ik_foot_r", "parent": "root", "transform": {"x": 60, "y": 250}, "length": 0, "tags": ["ik_target"]}
+  ],
+  "attachments": [],
+  "draw_order": [],
+  "constraints": [
+    {"name": "ik_arm_l", "type": "ik", "bones": ["upper_arm_l", "forearm_l"], "target": "ik_hand_l", "bend": "clockwise", "mix": 1},
+    {"name": "ik_arm_r", "type": "ik", "bones": ["upper_arm_r", "forearm_r"], "target": "ik_hand_r", "bend": "clockwise", "mix": 1},
+    {"name": "ik_leg_l", "type": "ik", "bones": ["thigh_l", "shin_l"], "target": "ik_foot_l", "bend": "clockwise", "mix": 1},
+    {"name": "ik_leg_r", "type": "ik", "bones": ["thigh_r", "shin_r"], "target": "ik_foot_r", "bend": "clockwise", "mix": 1},
+    {"name": "jaw_limit", "type": "rotation_limit", "bones": ["jaw"], "min": 0, "max": 25}
+  ],
+  "deform": []
+}

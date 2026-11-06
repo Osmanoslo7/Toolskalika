@@ -23,11 +23,19 @@ class EpisodeSettings:
 
 
 @dataclass(frozen=True)
+class ArtworkSettings:
+    padding_px: int
+    min_transparent_fraction: float
+    max_background_fraction: float
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     name: str
     slug: str
     video: VideoSettings
     episode: EpisodeSettings
+    artwork: ArtworkSettings
 
 
 def load_config(path: Path = CONFIG_FILE) -> ProjectConfig:
@@ -37,4 +45,5 @@ def load_config(path: Path = CONFIG_FILE) -> ProjectConfig:
         slug=data["project"]["slug"],
         video=VideoSettings(**data["video"]),
         episode=EpisodeSettings(**data["episode"]),
+        artwork=ArtworkSettings(**data["artwork"]),
     )

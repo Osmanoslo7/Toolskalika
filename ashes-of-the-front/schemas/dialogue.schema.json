@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ashes of the Front dialogue viseme schedule",
+  "description": "Maps one spoken line to mouth shapes. Frames are integers on the canonical 24 fps timeline. Each viseme holds from its frame until the next event (or until the end).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "character", "fps", "duration_frames", "events"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schema_version": { "const": 1 },
+    "character": { "$ref": "#/$defs/id" },
+    "fps": { "type": "integer", "minimum": 1, "maximum": 60 },
+    "duration_frames": { "type": "integer", "minimum": 1 },
+    "source_audio": { "type": "string", "minLength": 1 },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["frame", "viseme"],
+        "properties": {
+          "frame": { "type": "integer", "minimum": 0 },
+          "viseme": { "$ref": "#/$defs/viseme" },
+          "time_seconds": {
+            "description": "Optional source timestamp, kept for review only. The frame is what plays.",
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 40 },
+    "viseme": { "enum": ["REST", "MBP", "FV", "TH", "DNT", "KG", "CHJ", "SZ", "L", "AA", "E", "I", "O", "U"] }
+  }
+}
