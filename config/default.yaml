@@ -64,8 +64,10 @@ render:
     sample_rate: 48000
   subtitles:
     enabled: true               # burn in a sidecar .srt (same name as the recording) if present
-    font_size: 18
-    vertical_margin: 220        # lift subtitles above phone UI in 9:16
+    font_size: 18               # libass script units (frame height = 288 units)
+    font_size_vertical: 11
+    bottom_margin: 0.07         # distance from the bottom, as a fraction of frame height
+    bottom_margin_vertical: 0.2 # lift subtitles above phone UI (captions, buttons) in 9:16
 
 qa:
   max_black_s: 1.0              # black time allowed outside fade zones
