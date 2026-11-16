@@ -81,7 +81,19 @@ class DB:
         self.conn.execute("PRAGMA foreign_keys = ON")
         self.conn.execute("PRAGMA journal_mode = WAL")
         self.conn.executescript(SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self) -> None:
+        """Add columns introduced after the first release, keeping existing data."""
+        def cols(table):
+            return {r[1] for r in self.conn.execute(f"PRAGMA table_info({table})")}
+        if "game" not in cols("media"):
+            self.conn.execute("ALTER TABLE media ADD COLUMN game TEXT NOT NULL DEFAULT 'generic'")
+        if "audio_json" not in cols("renders"):
+            self.conn.execute("ALTER TABLE renders ADD COLUMN audio_json TEXT")
+        if "enhanced" not in cols("renders"):
+            self.conn.execute("ALTER TABLE renders ADD COLUMN enhanced INTEGER NOT NULL DEFAULT 0")
 
     def close(self) -> None:
         self.conn.close()
@@ -117,6 +129,10 @@ class DB:
             "SELECT m.*, (SELECT COUNT(*) FROM candidates c WHERE c.media_id = m.id) AS n_candidates,"
             " (SELECT path FROM thumbnails t WHERE t.media_id = m.id ORDER BY t_s LIMIT 1 OFFSET 1) AS thumb"
             " FROM media m ORDER BY m.id DESC")
+
+    def set_media_game(self, media_id: int, game: str) -> None:
+        self.conn.execute("UPDATE media SET game = ? WHERE id = ?", (game, media_id))
+        self.conn.commit()
 
     def set_media_status(self, media_id: int, status: str) -> None:
         self.conn.execute("UPDATE media SET status = ? WHERE id = ?", (status, media_id))
@@ -170,6 +186,8 @@ class DB:
     # --- renders ---------------------------------------------------------------
     def upsert_render(self, **fields) -> int:
         fields.setdefault("created_at", time.time())
+        if isinstance(fields.get("audio_json"), list):
+            fields["audio_json"] = json.dumps(fields["audio_json"])
         self.conn.execute("DELETE FROM renders WHERE candidate_id = ? AND preset = ?",
                           (fields["candidate_id"], fields["preset"]))
         return self._insert("renders", fields)
@@ -186,6 +204,7 @@ class DB:
             rows = self._all("SELECT * FROM renders WHERE candidate_id = ? ORDER BY preset", (candidate_id,))
         for r in rows:
             r["qa"] = json.loads(r.pop("qa_json")) if r.get("qa_json") else None
+            r["audio_sources"] = json.loads(r.pop("audio_json")) if r.get("audio_json") else []
         return rows
 
     # --- metrics ---------------------------------------------------------------

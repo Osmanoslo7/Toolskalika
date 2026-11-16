@@ -1,6 +1,6 @@
 # Beta implementation notes
 
-Status: phases 1–5 are implemented and tested. 31 automated tests pass.
+Status: phases 1–5 and the Beta 0.2 audio and game intelligence slice are implemented. 45 automated tests pass.
 
 ## Plan as executed
 
@@ -69,3 +69,34 @@ human labels (see below).
 - **One job at a time** in the dashboard worker, and renders are sequential.
 - **No transcription.** Subtitles only come from an `.srt` next to the recording.
 - **The QA "frozen" check** can warn on legitimately calm scenes, such as menus or standing still. It fails a clip only when more than 50% of it is frozen.
+
+## Beta 0.2 — audio and gaming intelligence
+
+### Built
+
+| Capability | How | Verified by |
+|---|---|---|
+| Sound-event detection: impact, explosion, gunfire, siren, engine rise, sudden silence, music + BPM | Spectral features (32 ms frames, numpy FFT): onset flux, band energies, tonal peak tracking, decay shape, onset autocorrelation | All 7 planted events found within ±0.3 s on 3 random seeds, with no extra events. Zero events on ambience plus irregular speech-like audio. Fades are not counted as "sudden silence". |
+| Telling mic pops from real hits | Transient events are checked against on-screen flash and motion. Unconfirmed hits lose confidence and cannot drive clip boundaries. | `test_corroboration_downgrades_audio_only_hits`, `test_game_profile_changes_interpretation` |
+| Game profiles | YAML per game: detector weights, event weights, categories (all / any / motion rules), title ideas, enhancement rules | Same footage → "Police chase" (GTA) vs "Explosive moment" (generic) |
+| Story-aware clip windows | Clips never cut an event in half, keep a 1 s lead-in, bridge lulls under 2.5 s, never grow into another clip | Escalation fixture produces one 5.0–19.5 s clip covering explosion → gunfire → siren → engine |
+| Subtle enhancement | Locally synthesised impact SFX mixed 10 dB under the game audio, plus a decaying 8% punch-in zoom, at most 3 per clip, 1.5 s apart | `test_zoom_filter_only_changes_frames_in_window`, enhanced render passes QA |
+| Licensing registry and export gate | Every render stores its sound sources and licences. Export skips clips containing unknown or unverified audio. | `test_export_blocks_unverified_audio` |
+
+### Not built, and why
+
+| Requested | Status |
+|---|---|
+| Screaming, laughter, victory jingles | Needs a trained audio classifier (e.g. YAMNet). Model downloads are blocked in this environment. Victory jingles could instead be matched against reference clips you supply, which is a good next step. |
+| Trend tracking / viral sounds | Needs an external data source and per-track licence checks. Planned for Beta 0.5. Unlicensed trending music is never added automatically. |
+| Kill counts, wanted-level stars, HUD reading | Needs OCR or template matching on HUD regions. Planned for the gaming-expertise phase. |
+| Beat-synchronised cuts | Beat times are already detected and stored per clip (`beats_clip`). Cutting to them is the next editing step. |
+
+### Validation status
+
+Every number above comes from **synthetic** audio with known ground truth. The
+thresholds have not yet been tested on real gameplay. Real recordings have music,
+voice chat and overlapping effects, and they will expose false positives and
+missed events. Download of freely licensed test footage from Wikimedia Commons
+was attempted (Xonotic, Red Eclipse and 0 A.D. gameplay) but rate-limited with
+HTTP 429 on every attempt. Real footage is the next blocker to clear.

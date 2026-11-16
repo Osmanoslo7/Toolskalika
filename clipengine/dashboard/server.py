@@ -69,14 +69,15 @@ class App:
                     for r in ingest_paths([p["path"]], self.cfg, self.db):
                         msgs.append(f"{Path(r.path).name}: {r.status} {r.message}")
                         if r.status == "ingested":
-                            n = len(analyze(r.media_id, self.cfg, self.db))
+                            n = len(analyze(r.media_id, self.cfg, self.db, game=p.get("game")))
                             msgs.append(f"{n} candidate(s)")
                     job["message"] = "; ".join(msgs) or "no supported files found"
                 elif job["kind"] == "analyze":
-                    job["message"] = f"{len(analyze(p['media_id'], self.cfg, self.db))} candidate(s)"
+                    n = len(analyze(p["media_id"], self.cfg, self.db, game=p.get("game")))
+                    job["message"] = f"{n} candidate(s)"
                 elif job["kind"] == "render":
                     out = []
-                    for r in render_all_presets(p["candidate_id"], self.cfg, self.db):
+                    for r in render_all_presets(p["candidate_id"], self.cfg, self.db, enhance=p.get("enhance")):
                         out.append(f"{r['preset']}: QA {check_render(r, self.cfg, self.db)['status']}")
                     job["message"] = ", ".join(out)
                 job["status"] = "done"
@@ -190,6 +191,15 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 left -= len(chunk)
 
+    @staticmethod
+    def _game(body: dict):
+        """None = keep current; False = invalid; otherwise a known profile key."""
+        from ..intelligence.profiles import list_profiles
+        g = body.get("game")
+        if not g:
+            return None
+        return g if g in list_profiles() else False
+
     # --- routes ----------------------------------------------------------------------------
     def do_GET(self):
         u = urlparse(self.path)
@@ -209,6 +219,9 @@ class Handler(BaseHTTPRequestHandler):
         elif m := re.fullmatch(r"/api/media/(\d+)", p):
             d = self.app.media_detail(int(m.group(1)))
             self._json(d if d else {"error": "not found"}, 200 if d else 404)
+        elif p == "/api/profiles":
+            from ..intelligence.profiles import list_profiles
+            self._json(list_profiles())
         elif p == "/api/jobs":
             self._json(self.app.jobs[-20:][::-1])
         elif p == "/api/report":
@@ -228,14 +241,18 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": str(exc)}, 400)
             self._json({"ok": True})
         elif m := re.fullmatch(r"/api/candidates/(\d+)/render", p):
-            self._json(app.submit("render", candidate_id=int(m.group(1))))
+            self._json(app.submit("render", candidate_id=int(m.group(1)), enhance=bool(body.get("enhance"))))
         elif m := re.fullmatch(r"/api/media/(\d+)/analyze", p):
-            self._json(app.submit("analyze", media_id=int(m.group(1))))
+            game = self._game(body)
+            if game is False:
+                return self._json({"error": "unknown game profile"}, 400)
+            self._json(app.submit("analyze", media_id=int(m.group(1)), game=game))
         elif p == "/api/import":
             path = (body.get("path") or "").strip()
-            if not path:
-                return self._json({"error": "path required"}, 400)
-            self._json(app.submit("import", path=path))
+            game = self._game(body)
+            if not path or game is False:
+                return self._json({"error": "path required" if not path else "unknown game profile"}, 400)
+            self._json(app.submit("import", path=path, game=game))
         elif p == "/api/export":
             from ..export import export_approved
             m = export_approved(app.cfg, app.db)

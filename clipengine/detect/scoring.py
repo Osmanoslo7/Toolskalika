@@ -11,8 +11,9 @@ LABELS = {
     "frame_diff": "High-motion sequence",
     "visual_activity": "Visual effects burst",
     "scene_change": "Scene transition",
+    "sound_events": "Sound event",
 }
-CONTENT_DETECTORS = ("audio_peak", "loudness_change", "frame_diff", "visual_activity")
+CONTENT_DETECTORS = ("audio_peak", "loudness_change", "frame_diff", "visual_activity", "sound_events")
 
 
 def mmss(t: float) -> str:
@@ -41,25 +42,68 @@ def _snap(t: float, cuts: list[float], window: float) -> float | None:
     return min(near, key=lambda c: abs(c - t)) if near else None
 
 
+def _cover_events(start: float, end: float, events: list[dict], sc: dict) -> tuple[float, float, list[dict]]:
+    """Never cut a sound event in half: include events that overlap or follow closely, with a
+    1 s lead-in before the first one. Repeats until stable (one event can pull in the next)."""
+    bridge = sc.get("bridge_s", 0)
+    evs = [e for e in events if e["type"] != "music" and e["confidence"] >= 0.5
+           and e.get("confirmed") is not False]          # audio-only hits may be mic pops
+    inside: list[dict] = []
+    for _ in range(5):
+        # events that start inside the window (or just after it) — never reach back to earlier ones
+        inside = [e for e in evs if start - 0.5 <= e["t"] < end + bridge]
+        if not inside:
+            break
+        new_start = min(start, min(e["t"] for e in inside) - 1.0)
+        new_end = max(end, max(e["t"] + min(e["duration"], 4.0) for e in inside) + 0.5)
+        if new_end - new_start > sc["max_duration_s"]:
+            new_end = new_start + sc["max_duration_s"]
+        if (new_start, new_end) == (start, end):
+            break
+        start, end = new_start, new_end
+    return start, end, inside
+
+
 def _window(peak_i: int, fused: np.ndarray, hop_s: float, duration: float, sc: dict,
-            cuts: list[float], taken: list[tuple[float, float]]) -> tuple[float, float, list[str]] | None:
+            cuts: list[float], taken: list[tuple[float, float]],
+            events: list[dict] | None = None) -> tuple[float, float, list[str]] | None:
     notes = []
     peak_t = peak_i * hop_s
     start, end = peak_t - sc["pre_roll_s"], peak_t + sc["post_roll_s"]
-    # Grow while the action stays near its peak level.
+    # Grow while the action stays near its peak level, bridging short lulls (bridge_s) so an
+    # escalating sequence (crash -> shootout -> chase) becomes one clip, not several fragments.
     keep = 0.6 * fused[peak_i]
+    bridge = int(sc.get("bridge_s", 0) / hop_s)
+    claimed = np.zeros(len(fused), dtype=bool)          # never grow into another clip's action
+    for a, b in taken:
+        claimed[int(a / hop_s):int(b / hop_s) + 1] = True
+    fused = np.where(claimed, 0.0, fused)
     i = int(start / hop_s)
-    while i > 0 and fused[i - 1] >= keep and end - (i - 1) * hop_s <= sc["max_duration_s"]:
-        i -= 1
+    while i > 0 and end - (i - 1) * hop_s <= sc["max_duration_s"]:
+        if fused[i - 1] >= keep:
+            i -= 1
+            continue
+        lo = max(0, i - 1 - bridge)
+        hits = np.flatnonzero(fused[lo:i - 1] >= keep)
+        if len(hits) == 0 or end - (lo + hits[-1]) * hop_s > sc["max_duration_s"]:
+            break
+        i = lo + int(hits[-1])
     start = min(start, i * hop_s)
     j = int(end / hop_s)
-    while j + 1 < len(fused) and fused[j + 1] >= keep and (j + 1) * hop_s - start <= sc["max_duration_s"]:
-        j += 1
-    end = max(end, j * hop_s)
+    while j + 1 < len(fused) and (j + 1) * hop_s - start <= sc["max_duration_s"]:
+        if fused[j + 1] >= keep:
+            j += 1
+            continue
+        hits = np.flatnonzero(fused[j + 2:j + 2 + bridge] >= keep)
+        if len(hits) == 0 or (j + 2 + hits[0]) * hop_s - start > sc["max_duration_s"]:
+            break
+        j = j + 2 + int(hits[0])
+    end = max(end, j * hop_s + sc["post_roll_s"] if j * hop_s > peak_t + sc["post_roll_s"] else end)
     # Minimum duration, expanding around the peak.
     if end - start < sc["min_duration_s"]:
         pad = (sc["min_duration_s"] - (end - start)) / 2
         start, end = start - pad, end + pad
+    start, end, covered = _cover_events(start, end, events or [], sc)
     start, end = max(0.0, start), min(duration, end)
     if end - start < sc["min_duration_s"]:  # hit an edge: extend on the other side
         if start == 0:
@@ -67,12 +111,14 @@ def _window(peak_i: int, fused: np.ndarray, hop_s: float, duration: float, sc: d
         else:
             start = max(0.0, end - sc["min_duration_s"])
     # Snap to scene cuts so clips don't open or close mid-transition.
+    first_ev = min((e["t"] for e in covered), default=peak_t)
+    last_ev = max((e["t"] + min(e["duration"], 4.0) for e in covered), default=peak_t)
     s_cut = _snap(start, cuts, sc["snap_window_s"])
-    if s_cut is not None and s_cut < peak_t and end - s_cut >= sc["min_duration_s"]:
+    if s_cut is not None and s_cut < min(peak_t, first_ev - 0.3) and end - s_cut >= sc["min_duration_s"]:
         start = s_cut
         notes.append(f"start aligned to scene cut at {mmss(s_cut)}")
     e_cut = _snap(end, cuts, sc["snap_window_s"])
-    if e_cut is not None and e_cut > peak_t and e_cut - start >= sc["min_duration_s"]:
+    if e_cut is not None and e_cut > max(peak_t, last_ev) and e_cut - start >= sc["min_duration_s"]:
         end = e_cut
         notes.append(f"end aligned to scene cut at {mmss(e_cut)}")
     # Trim against already chosen clips; drop if too little remains.
@@ -106,6 +152,13 @@ def _reasons(i: int, smoothed: dict, scores: dict, raw: dict, weights: dict, cut
             text = f"on-screen motion higher than {pct:.0f}% of this recording"
         elif k == "visual_activity":
             text = f"{float(raw['changed'][lo:hi].max()) * 100:.0f}% of the frame changing (effects, flashes)"
+        elif k == "sound_events":
+            evs = [e for e in raw.get("events", []) if start <= e["t"] <= end and e["type"] != "music"]
+            if not evs:
+                continue
+            evs.sort(key=lambda e: e["confidence"], reverse=True)
+            names = ", ".join(sorted({e["type"].replace("_", " ") for e in evs}))
+            text = f"recognised sound events: {names}"
         else:
             inside = [c for c in cuts if start <= c <= end]
             if not inside:
@@ -151,7 +204,7 @@ def select_candidates(scores: dict[str, np.ndarray], raw: dict, cuts: list[float
             peak_t = float(i * hop_s)
             if any(abs(peak_t - c["peak_s"]) < sc["min_gap_s"] for c in chosen):
                 continue
-            win = _window(int(i), fused, hop_s, duration, sc, cuts, taken)
+            win = _window(int(i), fused, hop_s, duration, sc, cuts, taken, raw.get("events"))
             if win is None:
                 continue
             start, end, notes = win

@@ -1,0 +1,29 @@
+# Minecraft — creepers, TNT, falls, surprises, quiet moments broken by danger.
+# Hand-written starting point; NOT yet validated on labelled footage.
+name: Minecraft
+description: Explosions (creeper/TNT), surprises, survival scares.
+
+weights:
+  sound_events: 0.35
+  frame_diff: 0.2
+
+event_weights:
+  explosion: 1.0              # creeper / TNT
+  impact: 0.6                 # falls, hits
+  sudden_silence: 0.5
+  music: 0.1
+  gunfire: 0.2
+  siren: 0.0
+  engine_rise: 0.0
+
+categories:
+  - name: Creeper / TNT explosion
+    any: [explosion]
+    title: "Aw man."
+  - name: Survival scare
+    any: [confirmed_hit]
+    title: "That was way too close"
+
+enhance:
+  impact_sfx_on: [explosion]
+  zoom_on: [explosion]

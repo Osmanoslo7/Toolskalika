@@ -8,7 +8,7 @@ from typing import Any
 import yaml
 
 DEFAULT_PATH = Path(__file__).resolve().parent.parent / "config" / "default.yaml"
-DETECTORS = ("audio_peak", "loudness_change", "frame_diff", "visual_activity", "scene_change")
+DETECTORS = ("audio_peak", "loudness_change", "frame_diff", "visual_activity", "scene_change", "sound_events")
 
 
 class ConfigError(ValueError):

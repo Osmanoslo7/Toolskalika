@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from .config import workspace
+from .intelligence.sfx import audio_sources_ok
 
 
 def _place(src: str, dest: Path) -> str:
@@ -39,6 +40,11 @@ def export_approved(cfg: dict, db, dest: str | Path | None = None) -> dict:
                 manifest["skipped"].append({"candidate_id": cand["id"], "preset": r["preset"],
                                             "reason": f"QA {r['qa_status']}"})
                 continue
+            ok, problems = audio_sources_ok(r.get("audio_sources", []))
+            if not ok:   # never hand over a clip whose audio licence is not verified
+                manifest["skipped"].append({"candidate_id": cand["id"], "preset": r["preset"],
+                                            "reason": "unverified audio licence: " + "; ".join(problems)})
+                continue
             name = f"{Path(media['path']).stem}_{_ts(cand['start_s'])}_{r['preset']}"
             method = _place(r["path"], out / f"{name}.mp4")
             if r.get("thumb_path"):
@@ -49,8 +55,12 @@ def export_approved(cfg: dict, db, dest: str | Path | None = None) -> dict:
                 "duration_s": r["duration_s"], "qa_status": r["qa_status"], "method": method,
                 "source": media["path"], "source_start_s": cand["start_s"], "source_end_s": cand["end_s"],
                 "confidence": cand["confidence"], "description": cand["description"],
+                "category": cand["reasons"].get("category"), "enhanced": bool(r.get("enhanced")),
+                "audio_sources": [{k: a[k] for k in ("name", "license") if k in a}
+                                  for a in r.get("audio_sources", [])],
                 # Draft metadata for a later, human-triggered YouTube step. Not uploaded.
-                "draft_metadata": {"title": f"{cand['description']} ({Path(media['path']).stem})",
+                "draft_metadata": {"title": cand["reasons"].get("title")
+                                   or f"{cand['description']} ({Path(media['path']).stem})",
                                    "shorts": r["height"] > r["width"]},
             })
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2))

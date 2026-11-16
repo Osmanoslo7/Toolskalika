@@ -15,6 +15,8 @@ analysis:
   audio_rate: 16000
   baseline_window_s: 30         # rolling window for "louder than usual"
   scene_threshold: 0.35         # histogram distance counted as a hard cut
+  game: generic                 # default game profile (config/game_profiles/<name>.yaml)
+  sound_events: true            # run the sound-event detector
 
 scoring:
   weights:                      # relative weight of each detector (any positive numbers)
@@ -23,6 +25,7 @@ scoring:
     frame_diff: 0.25
     visual_activity: 0.15
     scene_change: 0.10          # scene cuts alone are weak evidence
+    sound_events: 0.25          # recognised sound events (explosions, gunfire, sirens...), weighted per game
   smooth_s: 2.0
   agree_threshold: 0.5          # a detector "agrees" if its smoothed value exceeds this
   min_agreeing: 2               # detectors that must agree for full confidence
@@ -31,6 +34,7 @@ scoring:
   min_score_floor: 0.2
   max_candidates: 10
   min_gap_s: 8                  # minimum distance between candidate peaks
+  bridge_s: 2.5                 # merge action separated by lulls shorter than this
   pre_roll_s: 4
   post_roll_s: 3
   min_duration_s: 6
@@ -62,6 +66,12 @@ render:
   audio:
     bitrate: 192k
     sample_rate: 48000
+  enhance:                      # subtle edits driven by detected sound events
+    enabled: false              # opt in per render (CLI --enhance or dashboard checkbox)
+    sfx_gain_db: -10            # effects sit well under the game audio
+    zoom: 0.08                  # 8% punch-in, decaying over ~0.4 s
+    max_effects: 3              # per clip, at least 1.5 s apart
+    min_confidence: 0.5
   subtitles:
     enabled: true               # burn in a sidecar .srt (same name as the recording) if present
     font_size: 18               # libass script units (frame height = 288 units)

@@ -1,0 +1,35 @@
+# Fortnite — eliminations, building fights, victories.
+# Hand-written starting point; NOT yet validated on labelled footage.
+name: Fortnite
+description: Eliminations, build fights, funny encounters.
+
+weights:
+  sound_events: 0.3
+  visual_activity: 0.2
+
+event_weights:
+  gunfire: 0.9
+  explosion: 0.9
+  impact: 0.6                 # building / breaking structures
+  sudden_silence: 0.4
+  music: 0.2                  # emotes, lobby
+  siren: 0.1
+  engine_rise: 0.3
+
+categories:
+  - name: Build fight
+    all: [impact]
+    any: [gunfire]
+    motion: 0.4
+    title: "Build fight got crazy"
+  - name: Elimination
+    any: [gunfire]
+    motion: 0.4
+    title: "Did not see that coming"
+  - name: Explosive play
+    any: [explosion]
+    title: "Rocket diff"
+
+enhance:
+  impact_sfx_on: [explosion]
+  zoom_on: [explosion, confirmed_hit]

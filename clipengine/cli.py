@@ -18,6 +18,12 @@ def cmd_ingest(args) -> int:
     from .ingest import ingest_paths
     cfg, db = _ctx(args)
     results = ingest_paths(args.paths, cfg, db)
+    if args.game:
+        from .intelligence.profiles import load_profile
+        load_profile(args.game)
+        for r in results:
+            if r.media_id:
+                db.set_media_game(r.media_id, args.game)
     for r in results:
         mid = f"#{r.media_id}" if r.media_id else "-"
         print(f"{r.status:9} {mid:5} {r.path}  {r.message}")
@@ -34,24 +40,29 @@ def cmd_analyze(args) -> int:
     from .detect import analyze
     cfg, db = _ctx(args)
     for mid in _media_ids(db, args.media):
-        cands = analyze(mid, cfg, db, force=args.force)
-        print(f"#{mid}: {len(cands)} candidate(s)")
+        cands = analyze(mid, cfg, db, force=args.force, game=args.game)
+        game = db.get_media(mid)["game"]
+        print(f"#{mid}: {len(cands)} candidate(s)  [game profile: {game}]")
         for c in cands:
             print(f"  cand #{c['id']:<4} {c['start_s']:7.1f}-{c['end_s']:<7.1f} ({c['duration_s']:.1f}s) "
                   f"conf={c['confidence']:.2f}  {c['description']}")
+            if c["reasons"].get("title"):
+                print(f"      title idea: {c['reasons']['title']}")
             for r in c["reasons"]["signals"]:
                 print(f"      - {r['text']}")
+            for e in c["reasons"].get("events", []):
+                print(f"      ♪ {e['text']}")
             for n in c["reasons"]["notes"]:
                 print(f"      * {n}")
     return 0
 
 
-def _render_and_check(cand_ids, cfg, db, presets=None, qa=True) -> int:
+def _render_and_check(cand_ids, cfg, db, presets=None, qa=True, enhance=None) -> int:
     from .qa import check_render
     from .render import render_all_presets
     failed = 0
     for cid in cand_ids:
-        for r in render_all_presets(cid, cfg, db, presets):
+        for r in render_all_presets(cid, cfg, db, presets, enhance=enhance):
             status = check_render(r, cfg, db)["status"] if qa else "unchecked"
             failed += status == "failed"
             print(f"  cand #{cid:<4} {r['preset']:9} {r['width']}x{r['height']} {r['duration_s']:.1f}s "
@@ -67,7 +78,7 @@ def cmd_render(args) -> int:
     if not ids:
         print("nothing to render: give candidate ids or --media")
         return 1
-    return 1 if _render_and_check(ids, cfg, db, args.presets, not args.no_qa) else 0
+    return 1 if _render_and_check(ids, cfg, db, args.presets, not args.no_qa, args.enhance or None) else 0
 
 
 def cmd_qa(args) -> int:
@@ -93,9 +104,10 @@ def cmd_run(args) -> int:
         print(f"{r.status}: {r.path} {r.message}")
         if r.media_id is None:
             continue
-        cands = analyze(r.media_id, cfg, db)
+        cands = analyze(r.media_id, cfg, db, game=args.game)
         print(f"  {len(cands)} candidate(s)")
-        failed += _render_and_check([c["id"] for c in cands[: args.top]], cfg, db, args.presets)
+        failed += _render_and_check([c["id"] for c in cands[: args.top]], cfg, db, args.presets,
+                                    enhance=args.enhance or None)
     print("review them with:  python -m clipengine serve")
     return 1 if failed else 0
 
@@ -124,6 +136,33 @@ def cmd_serve(args) -> int:
     return 0
 
 
+def cmd_profiles(args) -> int:
+    from .intelligence.profiles import list_profiles, load_profile
+    for key, name in list_profiles().items():
+        p = load_profile(key)
+        print(f"{key:14} {name:14} {p.get('description', '')}")
+        if args.verbose:
+            for c in p["categories"]:
+                print(f"    category: {c['name']:24} all={c.get('all', [])} any={c.get('any', [])} "
+                      f"motion>={c.get('motion', 0)}")
+    return 0
+
+
+def cmd_sounds(args) -> int:
+    from .intelligence.sfx import ensure_builtin, register_sound
+    cfg, db = _ctx(args)
+    if args.action == "add":
+        if not (args.name and args.path and args.license):
+            print("usage: sounds add NAME PATH --license LICENSE --source SOURCE")
+            return 1
+        e = register_sound(cfg, args.name, args.path, args.license, args.source or "")
+        print(f"registered {args.name}: licence {e['license']} ({'verified' if e['verified'] else 'NOT verified'})")
+        return 0
+    for name, e in ensure_builtin(cfg).items():
+        print(f"{name:14} {e['license']:22} {'verified' if e['verified'] else 'UNVERIFIED':10} {e['source']}")
+    return 0
+
+
 def cmd_list(args) -> int:
     cfg, db = _ctx(args)
     for m in db.list_media():
@@ -144,11 +183,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     s = sub.add_parser("ingest", help="register recordings (files or directories)")
     s.add_argument("paths", nargs="+")
+    s.add_argument("--game", help="game profile for these recordings (see: profiles)")
     s.set_defaults(func=cmd_ingest)
 
     s = sub.add_parser("analyze", help="detect highlight candidates")
     s.add_argument("media", nargs="+", help="media ids, or 'all'")
     s.add_argument("--force", action="store_true", help="re-decode instead of using cached features")
+    s.add_argument("--game", help="game profile to use (see: profiles)")
     s.set_defaults(func=cmd_analyze)
 
     s = sub.add_parser("render", help="render candidates (landscape + vertical) and run QA")
@@ -157,6 +198,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--top", type=int, default=3)
     s.add_argument("--presets", nargs="+", help="subset of presets (default: all)")
     s.add_argument("--no-qa", action="store_true")
+    s.add_argument("--enhance", action="store_true", help="add subtle impact SFX and punch zooms on detected events")
     s.set_defaults(func=cmd_render)
 
     s = sub.add_parser("qa", help="re-run quality checks on renders")
@@ -168,7 +210,21 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("paths", nargs="+")
     s.add_argument("--top", type=int, default=3)
     s.add_argument("--presets", nargs="+")
+    s.add_argument("--game", help="game profile (see: profiles)")
+    s.add_argument("--enhance", action="store_true", help="add subtle impact SFX and punch zooms")
     s.set_defaults(func=cmd_run)
+
+    s = sub.add_parser("profiles", help="list game profiles")
+    s.add_argument("-v", "--verbose", action="store_true")
+    s.set_defaults(func=cmd_profiles)
+
+    s = sub.add_parser("sounds", help="list or register sound assets and their licences")
+    s.add_argument("action", nargs="?", choices=["list", "add"], default="list")
+    s.add_argument("name", nargs="?")
+    s.add_argument("path", nargs="?")
+    s.add_argument("--license", help="original | cc0 | licensed | youtube-audio-library | unknown")
+    s.add_argument("--source", help="where the sound came from")
+    s.set_defaults(func=cmd_sounds)
 
     s = sub.add_parser("export", help="export approved clips that passed QA")
     s.add_argument("--dest")

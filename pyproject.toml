@@ -12,7 +12,7 @@ dev = ["pytest>=8"]
 clipengine = "clipengine.cli:main"
 
 [tool.setuptools]
-packages = ["clipengine", "clipengine.detect", "clipengine.dashboard"]
+packages = ["clipengine", "clipengine.detect", "clipengine.dashboard", "clipengine.intelligence"]
 
 [tool.setuptools.package-data]
 "clipengine.dashboard" = ["*.html"]

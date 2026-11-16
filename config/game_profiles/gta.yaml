@@ -1,0 +1,44 @@
+# GTA V / GTA VI — open-world chaos: chases, crashes, explosions, shootouts.
+# Hand-written starting point; NOT yet validated on labelled footage.
+name: GTA
+description: Police chases, crashes, explosions, shootouts, close escapes.
+
+weights:
+  sound_events: 0.35          # GTA highlights are strongly audio-driven (sirens, crashes, gunfire)
+
+event_weights:
+  explosion: 1.0
+  siren: 0.9                  # wanted level / police pursuit
+  impact: 0.8                 # vehicle collisions
+  gunfire: 0.8
+  engine_rise: 0.6            # acceleration, escapes
+  sudden_silence: 0.5         # wasted / busted screens, cutscenes
+  music: 0.1                  # radio is almost always on; weak evidence
+
+categories:
+  - name: Police chase
+    all: [siren]
+    any: [engine_rise, impact, confirmed_hit]
+    title: "The cops really wanted me today"
+  - name: Vehicle destruction
+    all: [explosion]
+    motion: 0.4
+    title: "That car did not survive"
+  - name: Crash
+    any: [confirmed_hit]
+    motion: 0.5
+    title: "Worst driving you'll see today"
+  - name: Shootout
+    any: [gunfire]
+    title: "Shootout gone wrong"
+  - name: Getaway
+    any: [engine_rise]
+    motion: 0.5
+    title: "Clean getaway... almost"
+  - name: Wasted moment
+    any: [sudden_silence]
+    title: "Wait for it..."
+
+enhance:
+  impact_sfx_on: [explosion, impact]
+  zoom_on: [explosion, confirmed_hit]

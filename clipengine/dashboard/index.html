@@ -20,6 +20,14 @@ body { margin: 0; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-ser
 header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 12px 16px;
          background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
 header h1 { font-size: 16px; margin: 0 12px 0 0; }
+header select, .row select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px;
+               background: var(--bg); color: var(--ink); font: inherit; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: var(--chip); }
+.chip.ok { color: var(--good); } .chip.weak { color: var(--quiet); font-style: italic; }
+.titleidea { font-size: 13px; color: var(--quiet); margin: 2px 0 6px; }
+.titleidea b { color: var(--ink); font-weight: 500; }
+label.enh { font-size: 13px; color: var(--quiet); display: inline-flex; gap: 4px; align-items: center; }
 header input { flex: 1 1 260px; min-width: 0; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px;
                background: var(--bg); color: var(--ink); font: inherit; }
 button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--chip);
@@ -69,6 +77,7 @@ details { font-size: 12px; color: var(--quiet); }
 <header>
   <h1>Clip Review</h1>
   <input id="importPath" placeholder="Path to a recording or folder on this computer (MP4, MOV, WebM, MKV)">
+  <select id="importGame" title="Game profile"></select>
   <button id="importBtn" class="primary">Import &amp; analyse</button>
   <button id="exportBtn" title="Copy approved clips that passed QA into an export folder">Export approved</button>
   <div id="jobs"></div>
@@ -81,7 +90,9 @@ details { font-size: 12px; color: var(--quiet); }
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const mmss = t => `${Math.floor(t/60)}:${(t%60).toFixed(1).padStart(4,"0")}`;
-let current = null, filter = "all", busy = false;
+let current = null, filter = "all", busy = false, profiles = {};
+const ICON = {explosion: "💥", gunfire: "🔫", impact: "💢", siren: "🚨", engine_rise: "🏎️",
+              sudden_silence: "🤫", music: "🎵"};
 
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} :
@@ -134,6 +145,8 @@ async function loadDetail() {
   $("#detail").innerHTML = `
     <div class="panel">
       <div class="row"><div class="title">${esc(m.name)}</div>
+        <select id="gameSel" title="Game profile">${Object.entries(profiles).map(([k, n]) =>
+          `<option value="${k}" ${k === m.game ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
         <button id="reanalyse">Re-analyse</button></div>
       <div class="meta">${esc(m.path)}<br>${m.duration_s.toFixed(1)}s · ${m.width}×${m.height} · ${m.fps} fps ·
         ${esc(m.video_codec)}/${esc(m.audio_codec || "no audio")} · ${(m.size_bytes/1e6).toFixed(1)} MB (original, read-only)</div>
@@ -152,22 +165,29 @@ async function loadDetail() {
           <span class="conf" title="confidence"><i style="width:${(c.confidence*100).toFixed(0)}%"></i></span>
           <span>${(c.confidence*100).toFixed(0)}%</span>
         </div>
+        ${c.reasons.title ? `<div class="titleidea">Title idea: <b>${esc(c.reasons.title)}</b></div>` : ""}
+        ${(c.reasons.events || []).length ? `<div class="chips">${c.reasons.events.map(e =>
+          `<span class="chip ${e.confirmed === false ? "weak" : e.confirmed ? "ok" : ""}" title="${esc(e.text)}">
+           ${ICON[e.type] || "♪"} ${esc(e.type.replace("_", " "))} @${e.t_clip.toFixed(1)}s</span>`).join("")}</div>` : ""}
         <ul class="reasons">${c.reasons.signals.map(s => `<li>${esc(s.text)}</li>`).join("")}
           ${c.reasons.notes.map(n => `<li class="note">${esc(n)}</li>`).join("")}</ul>
         <div class="row">
           <button class="approve ${c.status === "approved" ? "on" : ""}" data-s="approved" data-c="${c.id}">Approve</button>
           <button class="reject ${c.status === "rejected" ? "on" : ""}" data-s="rejected" data-c="${c.id}">Reject</button>
           <button data-render="${c.id}">${c.renders.length ? "Re-render" : "Render clips"}</button>
+          <label class="enh" title="Subtle impact sounds and punch-in zooms on detected events">
+            <input type="checkbox" data-enh="${c.id}" ${c.renders.some(r => r.enhanced) ? "checked" : ""}> enhance</label>
         </div>
         <div class="videos">${c.renders.map(r => `
           <div class="vid ${r.height > r.width ? "v" : "l"}">
             <video controls preload="metadata" src="${r.url}" poster="${r.thumb_url || ""}"></video>
-            <div class="meta">${esc(r.preset)} ${r.width}×${r.height} · ${(r.size_bytes/1e6).toFixed(1)} MB · rendered in ${r.render_s.toFixed(1)}s</div>
+            <div class="meta">${esc(r.preset)} ${r.width}×${r.height} · ${(r.size_bytes/1e6).toFixed(1)} MB · rendered in ${r.render_s.toFixed(1)}s${r.enhanced ? " · enhanced" : ""}</div>
             ${qaBlock(r)}
           </div>`).join("")}</div>
       </div>`).join("")}`;
   drawTimeline(d.timeline, d.candidates, m.duration_s);
-  $("#reanalyse").onclick = async () => { await api(`/api/media/${current}/analyze`, {}); pollJobs(); };
+  $("#reanalyse").onclick = async () => {
+    await api(`/api/media/${current}/analyze`, {game: $("#gameSel").value}); pollJobs(); };
   document.querySelectorAll(".filters button").forEach(b => b.onclick = () => { filter = b.dataset.f; loadDetail(); });
   document.querySelectorAll("[data-s]").forEach(b => b.onclick = async () => {
     const already = b.classList.contains("on");
@@ -175,7 +195,9 @@ async function loadDetail() {
     loadDetail(); loadRecs();
   });
   document.querySelectorAll("[data-render]").forEach(b => b.onclick = async () => {
-    b.disabled = true; b.textContent = "Queued…"; await api(`/api/candidates/${b.dataset.render}/render`, {}); pollJobs();
+    const enh = document.querySelector(`[data-enh="${b.dataset.render}"]`).checked;
+    b.disabled = true; b.textContent = "Queued…";
+    await api(`/api/candidates/${b.dataset.render}/render`, {enhance: enh}); pollJobs();
   });
 }
 
@@ -192,7 +214,7 @@ async function pollJobs() {
 
 $("#importBtn").onclick = async () => {
   const path = $("#importPath").value.trim(); if (!path) return;
-  await api("/api/import", {path}); $("#importPath").value = ""; pollJobs();
+  await api("/api/import", {path, game: $("#importGame").value}); $("#importPath").value = ""; pollJobs();
 };
 $("#exportBtn").onclick = async () => {
   const r = await api("/api/export", {});
@@ -200,6 +222,9 @@ $("#exportBtn").onclick = async () => {
     (r.skipped.length ? ` · skipped ${r.skipped.length} (not rendered or failed QA)` : "");
 };
 window.addEventListener("resize", () => current != null && loadDetail());
+api("/api/profiles").then(p => { profiles = p;
+  $("#importGame").innerHTML = Object.entries(p).map(([k, n]) =>
+    `<option value="${k}" ${k === "generic" ? "selected" : ""}>${esc(n)}</option>`).join(""); });
 loadRecs(); pollJobs();
 </script>
 </body>

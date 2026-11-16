@@ -1,0 +1,44 @@
+# Generic profile — used when the game is unknown.
+# Profiles are hand-written starting points. They have NOT been validated on labelled
+# footage yet; tune them using approve/reject results.
+name: Generic
+description: Any game. Relies on audio/visual intensity and common sound events.
+
+# Optional overrides of scoring.weights in config/default.yaml
+weights: {}
+
+# How much each sound event contributes to the "sound_events" detector (0..1).
+event_weights:
+  explosion: 1.0
+  gunfire: 0.8
+  impact: 0.7
+  siren: 0.6
+  engine_rise: 0.5
+  sudden_silence: 0.6
+  music: 0.0
+
+# First matching category names the clip. Conditions:
+#   all: every listed event must occur in the clip
+#   any: at least one must occur
+#   motion: minimum on-screen motion score at the peak (0..1)
+# Pseudo-event "confirmed_hit" = an impact/explosion/gunfire confirmed by on-screen flash or motion.
+categories:
+  - name: Explosive moment
+    any: [explosion]
+    title: "That explosion came out of nowhere"
+  - name: Firefight
+    any: [gunfire]
+    title: "Things got loud fast"
+  - name: Big hit
+    any: [confirmed_hit]
+    motion: 0.4
+    title: "What a hit"
+  - name: Sudden silence
+    any: [sudden_silence]
+    title: "And then... silence"
+
+# Subtle enhancement during rendering (only when render.enhance.enabled is true).
+# Sound effects are generated locally by the engine (original, no licence restrictions).
+enhance:
+  impact_sfx_on: [explosion, impact]      # add a soft low impact under these events
+  zoom_on: [explosion, confirmed_hit]     # brief punch-in zoom on these events

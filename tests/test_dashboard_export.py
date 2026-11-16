@@ -126,3 +126,12 @@ def test_cli_run_end_to_end(footage_dir, tmp_path, capsys):
     rep = capsys.readouterr().out
     assert "render:vertical" in rep and "Workspace storage" in rep
     assert sha256(src) == before
+
+
+def test_dashboard_profiles_and_validation(server):
+    _, base = server
+    profiles = json.loads(get(base + "/api/profiles")[2])
+    assert profiles["gta"] == "GTA" and "generic" in profiles
+    with pytest.raises(urllib.error.HTTPError) as e:
+        post(base + "/api/import", {"path": "/tmp/x.mp4", "game": "not_a_game"})
+    assert e.value.code == 400

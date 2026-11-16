@@ -93,12 +93,52 @@ def measure_loudness(src: str, start: float, dur: float, lcfg: dict) -> dict | N
     return data
 
 
+def zoom_filter(zooms: list[float], amount: float, w: int, h: int) -> str:
+    """Brief punch-in at each time: +amount scale that decays over ~0.4 s, centre-anchored."""
+    terms = "+".join(f"between(t,{t:.3f},{t + 0.45:.3f})*exp(-(t-{t:.3f})*7)" for t in zooms)
+    z = f"(1+{amount}*({terms}))"
+    return f"scale=w='trunc({w}*{z}/2)*2':h='trunc({h}*{z}/2)*2':eval=frame,crop={w}:{h}"
+
+
+def plan_effects(cand: dict, profile: dict, ecfg: dict, sfx_reg: dict, dur: float) -> dict:
+    """Choose subtle effects from the clip's sound events. Returns {"sfx": [...], "zooms": [...]}."""
+    rules = profile.get("enhance", {})
+    sfx_on, zoom_on = set(rules.get("impact_sfx_on", [])), set(rules.get("zoom_on", []))
+    picked, zooms, last = [], [], -9.0
+    events = sorted(cand["reasons"].get("events", []), key=lambda e: -e["confidence"])
+    for e in events:
+        t = e.get("t_clip", 0.0)
+        if e["confidence"] < ecfg["min_confidence"] or not 0.3 <= t <= dur - 0.5:
+            continue
+        if any(abs(t - x["t"]) < 1.5 for x in picked) or len(picked) >= ecfg["max_effects"]:
+            continue
+        kind = e["type"]
+        confirmed_hit = kind in ("impact", "explosion", "gunfire") and e.get("confirmed")
+        want_sfx = kind in sfx_on
+        want_zoom = kind in zoom_on or (confirmed_hit and "confirmed_hit" in zoom_on)
+        if not (want_sfx or want_zoom):
+            continue
+        entry = {"t": round(t, 3), "event": kind}
+        if want_sfx:
+            name = "impact_low" if kind == "explosion" else "impact_soft"
+            entry.update(sfx=name, path=sfx_reg[name]["path"], license=sfx_reg[name]["license"])
+        if want_zoom:
+            zooms.append(round(t, 3))
+        picked.append(entry)
+        last = t
+    return {"sfx": [p for p in picked if "sfx" in p], "zooms": sorted(zooms)}
+
+
 def build_command(src: str, out: Path, start: float, dur: float, preset: dict, rcfg: dict,
-                  has_audio: bool, loud: dict | None, srt_name: str | None) -> list[str]:
+                  has_audio: bool, loud: dict | None, srt_name: str | None,
+                  effects: dict | None = None) -> list[str]:
     w, h = preset["width"], preset["height"]
     fi = min(rcfg["fade_in_s"], dur / 3)
     fo = min(rcfg["fade_out_s"], dur / 3)
     vf = video_filter(preset["mode"], w, h) + f",fps={rcfg['fps']}"
+    effects = effects or {"sfx": [], "zooms": []}
+    if effects["zooms"]:
+        vf += "," + zoom_filter(effects["zooms"], rcfg["enhance"]["zoom"], w, h)
     if srt_name:
         st = rcfg["subtitles"]
         vertical = h > w
@@ -119,19 +159,35 @@ def build_command(src: str, out: Path, start: float, dur: float, preset: dict, r
               f":offset={loud['target_offset']}:linear=true")
     else:
         af = "anull"
+    sr = rcfg["audio"]["sample_rate"]
+    af += f",aresample={sr},aformat=channel_layouts=stereo"
+    tail = ""
     if fi > 0:
-        af += f",afade=t=in:st=0:d={fi:.3f}"
+        tail += f"afade=t=in:st=0:d={fi:.3f},"
     if fo > 0:
-        af += f",afade=t=out:st={dur - fo:.3f}:d={fo:.3f}"
-    af += f",aresample={rcfg['audio']['sample_rate']},aformat=channel_layouts=stereo"
+        tail += f"afade=t=out:st={dur - fo:.3f}:d={fo:.3f},"
+    tail += "anull"
 
     cmd = ["ffmpeg", "-v", "error", "-y", "-ss", f"{start:.3f}", "-t", f"{dur:.3f}", "-i", src]
     if not has_audio:  # keep every output consistent: always a (silent) stereo track
-        cmd += ["-f", "lavfi", "-t", f"{dur:.3f}", "-i",
-                f"anullsrc=r={rcfg['audio']['sample_rate']}:cl=stereo"]
+        cmd += ["-f", "lavfi", "-t", f"{dur:.3f}", "-i", f"anullsrc=r={sr}:cl=stereo"]
     a_in = "0:a:0" if has_audio else "1:a:0"
+    graph = f"[0:v:0]{vf}[v];[{a_in}]{af}[am]"
+    first_sfx = 2 if not has_audio else 1
+    sfx = effects["sfx"]
+    for k, e in enumerate(sfx):
+        cmd += ["-i", e["path"]]
+        ms = int(e["t"] * 1000)
+        gain = rcfg["enhance"]["sfx_gain_db"]
+        graph += (f";[{first_sfx + k}:a]aresample={sr},aformat=channel_layouts=stereo,"
+                  f"adelay={ms}|{ms},volume={gain}dB[s{k}]")
+    if sfx:
+        mix_in = "[am]" + "".join(f"[s{k}]" for k in range(len(sfx)))
+        graph += f";{mix_in}amix=inputs={len(sfx) + 1}:normalize=0:duration=first,{tail}[a]"
+    else:
+        graph += f";[am]{tail}[a]"
     v = rcfg["video"]
-    cmd += ["-filter_complex", f"[0:v:0]{vf}[v];[{a_in}]{af}[a]", "-map", "[v]", "-map", "[a]",
+    cmd += ["-filter_complex", graph, "-map", "[v]", "-map", "[a]",
             "-t", f"{dur:.3f}",
             "-c:v", v["codec"], "-preset", v["preset"], "-crf", str(v["crf"]),
             "-profile:v", "high", "-pix_fmt", "yuv420p", "-r", str(rcfg["fps"]),
@@ -142,7 +198,7 @@ def build_command(src: str, out: Path, start: float, dur: float, preset: dict, r
 
 # --- public API -----------------------------------------------------------------------------
 
-def render_candidate(cand_id: int, preset_name: str, cfg: dict, db) -> dict:
+def render_candidate(cand_id: int, preset_name: str, cfg: dict, db, enhance: bool | None = None) -> dict:
     cand = db.get_candidate(cand_id)
     if cand is None:
         raise KeyError(f"no candidate #{cand_id}")
@@ -165,8 +221,20 @@ def render_candidate(cand_id: int, preset_name: str, cfg: dict, db) -> dict:
                 (out_dir / f"{stem}.srt").write_text(text)
                 srt_name = f"{stem}.srt"   # relative: ffmpeg runs with cwd=out_dir (no escaping issues)
         loud = measure_loudness(media["path"], start, dur, rcfg["loudness"]) if media["has_audio"] else None
+        enhance = rcfg["enhance"]["enabled"] if enhance is None else enhance
+        effects = {"sfx": [], "zooms": []}
+        if enhance:
+            from .intelligence.profiles import load_profile
+            from .intelligence.sfx import ensure_builtin
+            effects = plan_effects(cand, load_profile(media.get("game")), rcfg["enhance"],
+                                   ensure_builtin(cfg), dur)
+        # Every sound in the output, with its licence, for the export licence gate.
+        audio_sources = [{"name": "source recording", "license": "user-recording",
+                          "path": media["path"]}] if media["has_audio"] else []
+        audio_sources += [{"name": e["sfx"], "license": e["license"], "path": e["path"], "t": e["t"]}
+                          for e in effects["sfx"]]
         cmd = build_command(media["path"], out.name, start, dur, preset, rcfg,
-                            bool(media["has_audio"]), loud, srt_name)
+                            bool(media["has_audio"]), loud, srt_name, effects)
         cmd[-1] = str(out)
         proc = subprocess.run(cmd, cwd=out_dir, capture_output=True, text=True)
         if proc.returncode != 0:
@@ -182,14 +250,16 @@ def render_candidate(cand_id: int, preset_name: str, cfg: dict, db) -> dict:
             meta = {"width": None, "height": None, "duration_s": None}
         detail.update(preset=preset_name, render_s=render_s, clip_s=dur,
                       realtime_x=round(dur / render_s, 2) if render_s else None,
-                      subtitles=bool(srt_name), loudnorm=bool(loud))
+                      subtitles=bool(srt_name), loudnorm=bool(loud), effects=effects)
         rid = db.upsert_render(candidate_id=cand_id, preset=preset_name, path=str(out),
+                               audio_json=audio_sources, enhanced=int(bool(effects["sfx"] or effects["zooms"])),
                                thumb_path=str(thumb) if thumb.exists() else None,
                                width=meta["width"], height=meta["height"], duration_s=meta["duration_s"],
                                size_bytes=out.stat().st_size, render_s=render_s)
     return next(r for r in db.renders(cand_id) if r["id"] == rid)
 
 
-def render_all_presets(cand_id: int, cfg: dict, db, presets: list[str] | None = None) -> list[dict]:
+def render_all_presets(cand_id: int, cfg: dict, db, presets: list[str] | None = None,
+                       enhance: bool | None = None) -> list[dict]:
     names = presets or list(cfg["render"]["presets"])
-    return [render_candidate(cand_id, n, cfg, db) for n in names]
+    return [render_candidate(cand_id, n, cfg, db, enhance) for n in names]

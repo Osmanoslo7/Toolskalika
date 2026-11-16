@@ -1,0 +1,34 @@
+# Call of Duty — fast gunfights. Kill counts need HUD reading (not implemented yet),
+# so this profile works from gunfire density, explosions and motion.
+# Hand-written starting point; NOT yet validated on labelled footage.
+name: Call of Duty
+description: Gunfights, explosive plays, clutch moments.
+
+weights:
+  sound_events: 0.3
+  frame_diff: 0.2
+
+event_weights:
+  gunfire: 1.0
+  explosion: 0.9              # grenades, killstreaks
+  impact: 0.5
+  sudden_silence: 0.6         # end of round / death
+  siren: 0.2
+  engine_rise: 0.1
+  music: 0.0
+
+categories:
+  - name: Explosive play
+    any: [explosion]
+    title: "Grenade diff"
+  - name: Firefight
+    all: [gunfire]
+    motion: 0.4
+    title: "This gunfight was insane"
+  - name: Clutch moment
+    all: [gunfire, sudden_silence]
+    title: "1v3 clutch?"
+
+enhance:
+  impact_sfx_on: [explosion]
+  zoom_on: [explosion]
