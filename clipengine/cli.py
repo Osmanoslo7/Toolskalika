@@ -24,6 +24,28 @@ def cmd_ingest(args) -> int:
     return 0 if all(r.status != "rejected" for r in results) else 1
 
 
+def _media_ids(db, which: list[str]) -> list[int]:
+    if which == ["all"]:
+        return [m["id"] for m in db.list_media()]
+    return [int(x.lstrip("#")) for x in which]
+
+
+def cmd_analyze(args) -> int:
+    from .detect import analyze
+    cfg, db = _ctx(args)
+    for mid in _media_ids(db, args.media):
+        cands = analyze(mid, cfg, db, force=args.force)
+        print(f"#{mid}: {len(cands)} candidate(s)")
+        for c in cands:
+            print(f"  cand #{c['id']:<4} {c['start_s']:7.1f}-{c['end_s']:<7.1f} ({c['duration_s']:.1f}s) "
+                  f"conf={c['confidence']:.2f}  {c['description']}")
+            for r in c["reasons"]["signals"]:
+                print(f"      - {r['text']}")
+            for n in c["reasons"]["notes"]:
+                print(f"      * {n}")
+    return 0
+
+
 def cmd_list(args) -> int:
     cfg, db = _ctx(args)
     for m in db.list_media():
@@ -45,6 +67,11 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("ingest", help="register recordings (files or directories)")
     s.add_argument("paths", nargs="+")
     s.set_defaults(func=cmd_ingest)
+
+    s = sub.add_parser("analyze", help="detect highlight candidates")
+    s.add_argument("media", nargs="+", help="media ids, or 'all'")
+    s.add_argument("--force", action="store_true", help="re-decode instead of using cached features")
+    s.set_defaults(func=cmd_analyze)
 
     s = sub.add_parser("list", help="list recordings")
     s.add_argument("-c", "--candidates", action="store_true", help="also list candidates")
