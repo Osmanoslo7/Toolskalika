@@ -1,0 +1,79 @@
+# Vice City Clip Engine — default configuration.
+# Override any key by passing --config my.yaml; values are deep-merged over these.
+
+workspace: workspace            # all generated data lives here (db, thumbs, renders, exports)
+
+ingest:
+  extensions: [".mp4", ".mov", ".webm", ".mkv"]
+  thumbnails: 6                 # evenly spaced thumbnails per recording
+  thumbnail_width: 320
+
+analysis:
+  hop_s: 0.5                    # resolution of every detector signal
+  frame_fps: 10                 # frames/s decoded for visual detectors
+  frame_width: 320              # analysis resolution (height keeps aspect)
+  audio_rate: 16000
+  baseline_window_s: 30         # rolling window for "louder than usual"
+  scene_threshold: 0.35         # histogram distance counted as a hard cut
+
+scoring:
+  weights:                      # relative weight of each detector (any positive numbers)
+    audio_peak: 0.30
+    loudness_change: 0.20
+    frame_diff: 0.25
+    visual_activity: 0.15
+    scene_change: 0.10          # scene cuts alone are weak evidence
+  smooth_s: 2.0
+  agree_threshold: 0.5          # a detector "agrees" if its smoothed value exceeds this
+  min_agreeing: 2               # detectors that must agree for full confidence
+  min_score: 0.35               # fused score needed for a candidate
+  min_candidates: 3             # relax threshold (down to floor) to reach this many
+  min_score_floor: 0.2
+  max_candidates: 10
+  min_gap_s: 8                  # minimum distance between candidate peaks
+  pre_roll_s: 4
+  post_roll_s: 3
+  min_duration_s: 6
+  max_duration_s: 30
+  snap_window_s: 1.5            # snap boundaries to scene cuts within this distance
+  static_penalty: 0.3           # multiplier for near-static (menu/loading) stretches
+
+render:
+  presets:
+    landscape:
+      width: 1920
+      height: 1080
+      mode: fit                 # fit = scale + pad, keeps the whole frame
+    vertical:
+      width: 1080
+      height: 1920
+      mode: crop                # crop = centre crop; blur = full frame over blurred fill
+  fps: 30
+  fade_in_s: 0.5
+  fade_out_s: 0.5
+  loudness:
+    integrated: -14             # LUFS target (YouTube normalises to about -14)
+    true_peak: -1.5
+    lra: 11
+  video:
+    codec: libx264
+    preset: veryfast
+    crf: 20
+  audio:
+    bitrate: 192k
+    sample_rate: 48000
+  subtitles:
+    enabled: true               # burn in a sidecar .srt (same name as the recording) if present
+    font_size: 18
+    vertical_margin: 220        # lift subtitles above phone UI in 9:16
+
+qa:
+  max_black_s: 1.0              # black time allowed outside fade zones
+  max_frozen_ratio: 0.5
+  frozen_warn_s: 2.0
+  silent_max_volume_db: -60     # max volume below this = missing audio
+  duration_tolerance_s: 0.35
+
+dashboard:
+  host: 127.0.0.1
+  port: 8765
